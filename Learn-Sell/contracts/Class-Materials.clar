@@ -11,6 +11,7 @@
 (define-constant ERR-INSUFFICIENT-BALANCE (err u104))
 (define-constant ERR-INVALID-PRICE (err u105))
 (define-constant ERR-INACTIVE (err u106))
+(define-constant ERR-INVALID-INPUT (err u107))
 
 ;; Data structures
 
@@ -82,6 +83,38 @@
   )
 )
 
+;; Validate title input
+(define-private (validate-title (title (string-ascii 100)))
+  (and
+    (> (len title) u0)
+    (<= (len title) u100)
+  )
+)
+
+;; Validate description input
+(define-private (validate-description (description (string-utf8 500)))
+  (and
+    (> (len description) u0)
+    (<= (len description) u500)
+  )
+)
+
+;; Validate category input
+(define-private (validate-category (category (string-ascii 50)))
+  (and
+    (> (len category) u0)
+    (<= (len category) u50)
+  )
+)
+
+;; Validate material ID input
+(define-private (validate-material-id (material-id uint))
+  (and
+    (> material-id u0)
+    (< material-id (var-get next-material-id))
+  )
+)
+
 ;; Check if user has purchased a material
 (define-read-only (has-purchased (buyer principal) (material-id uint))
   (is-some (map-get? purchases { buyer: buyer, material-id: material-id }))
@@ -104,6 +137,10 @@
       (new-id (get-next-material-id))
       (current-time (get-block-info? time (- block-height u1)))
     )
+    ;; Validate inputs
+    (asserts! (validate-title title) ERR-INVALID-INPUT)
+    (asserts! (validate-description description) ERR-INVALID-INPUT)
+    (asserts! (validate-category category) ERR-INVALID-INPUT)
     (asserts! (> price u0) ERR-INVALID-PRICE)
     (asserts! (is-some current-time) ERR-NOT-FOUND)
     
@@ -141,10 +178,16 @@
   (let
     ((material-option (map-get? learning-materials { material-id: material-id })))
     
+    ;; Validate inputs
+    (asserts! (validate-material-id material-id) ERR-INVALID-INPUT)
+    (asserts! (validate-title title) ERR-INVALID-INPUT)
+    (asserts! (validate-description description) ERR-INVALID-INPUT)
+    (asserts! (validate-category category) ERR-INVALID-INPUT)
+    (asserts! (> price u0) ERR-INVALID-PRICE)
     (asserts! (is-some material-option) ERR-NOT-FOUND)
+    
     (let ((material (unwrap-panic material-option)))
       (asserts! (is-eq (get creator material) tx-sender) ERR-UNAUTHORIZED)
-      (asserts! (> price u0) ERR-INVALID-PRICE)
       
       ;; Update the material
       (map-set learning-materials
@@ -169,7 +212,10 @@
   (let
     ((material-option (map-get? learning-materials { material-id: material-id })))
     
+    ;; Validate material ID
+    (asserts! (validate-material-id material-id) ERR-INVALID-INPUT)
     (asserts! (is-some material-option) ERR-NOT-FOUND)
+    
     (let ((material (unwrap-panic material-option)))
       (asserts! (or 
                   (is-eq (get creator material) tx-sender)
@@ -203,6 +249,9 @@
       (access-duration u15768000) ;; Access valid for 6 months (in seconds)
       (material-option (map-get? learning-materials { material-id: material-id }))
     )
+    
+    ;; Validate material ID
+    (asserts! (validate-material-id material-id) ERR-INVALID-INPUT)
     
     ;; Ensure time is available and material exists
     (asserts! (is-some current-time-option) ERR-NOT-FOUND)
@@ -268,6 +317,9 @@
       (material-option (map-get? learning-materials { material-id: material-id }))
       (extension-duration u15768000) ;; Extend for another 6 months
     )
+    
+    ;; Validate material ID
+    (asserts! (validate-material-id material-id) ERR-INVALID-INPUT)
     
     ;; Check if purchase exists, time is available, and material exists
     (asserts! (is-some purchase-option) ERR-NOT-FOUND)
